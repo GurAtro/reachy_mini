@@ -1,0 +1,30 @@
+llm:
+  model: "exaone3.5:7.8b"
+  base_url: "http://localhost:11434"
+  temperature: 0.7
+  system_prompt: |
+    You are Reachy, a friendly and helpful desktop AI assistant embodied in a Reachy Mini robot.
+    You assist the user with their PC tasks and engage in natural English conversation.
+    When the user asks you to control the PC (open YouTube, check disk space, shutdown, etc.),
+    use the available tools to fulfill the request.
+    Keep responses concise and conversational. You can also help the user practice English
+    by gently correcting mistakes when asked. Be warm, natural, and helpful.
+
+stt:
+  model: "base"          # tiny | base | small | medium | large-v3
+  language: "en"
+  device: "cpu"          # cpu | cuda
+
+tts:
+  voice: "en-US-JennyNeural"   # edge-tts voice (natural female)
+  speed: "+0%"                  # rate adjustment: "+10%" faster, "-10%" slower
+
+audio:
+  sample_rate: 16000
+  channels: 1
+  silence_threshold: 500
+  silence_duration: 1.5  # seconds of silence to stop recording
+
+reachy:
+  mock_mode: true        # true = run without hardware, false = real robot
+  ip: "192.168.1.100"   # Reachy Mini IP address (when mock_mode: false)

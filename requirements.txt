@@ -1,0 +1,23 @@
+# STT
+faster-whisper
+
+# Audio I/O
+pyaudio
+sounddevice
+numpy
+
+# TTS
+edge-tts      # primary: free, natural English voices (requires internet)
+pyttsx3       # fallback: fully offline Windows SAPI voices
+soundfile     # for audio playback of edge-tts output
+
+# LLM (Ollama client)
+ollama
+
+# PC Control
+psutil
+pyautogui
+
+# Utilities
+pyyaml
+requests
