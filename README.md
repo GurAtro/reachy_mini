@@ -62,6 +62,38 @@ Ollama에서 메모리가 모자라면 `stt.device: cpu`로 내리세요.
 > 이 프로젝트는 **`reachy-mini`** SDK를 씁니다. `reachy-sdk`는 대형 Reachy 2용이라
 > Reachy Mini에서는 동작하지 않습니다.
 
+#### 데몬이 먼저 떠 있어야 합니다
+
+`reachy-mini-daemon`이 카메라·마이크·스피커·모터 하드웨어를 소유하고, SDK는 거기
+붙는 클라이언트입니다. 데몬이 없으면 연결에 실패하고 이 앱은 조용히 mock 모드로
+내려갑니다 — 로그에 `[Reachy] Connected.`가 찍히는지 확인하세요.
+
+```
+http://localhost:8000        대시보드가 뜨면 데몬 정상
+http://localhost:8000/docs   API 문서
+```
+
+- **Wireless**: 데몬이 로봇 안에서 자동 실행됩니다.
+- **Lite**: PC에서 `reachy-mini-daemon`을 직접 띄우거나 Reachy Mini Control
+  데스크톱 앱이 대신 관리합니다.
+
+Reachy Mini Control 데스크톱 앱과 대시보드 앱 등록은 **선택 사항**입니다.
+이 프로젝트는 독립 스크립트라 데몬만 떠 있으면 `python main.py`로 실행됩니다.
+
+#### `media_backend` — 오디오 장치 충돌 주의
+
+데몬이 오디오 장치를 점유하기 때문에, 로봇을 켠 채 PC 마이크를 쓰면 충돌할 수
+있습니다. 조합에 맞춰 설정하세요.
+
+| `audio.source` | `reachy.enabled` | `media_backend` |
+|---|---|---|
+| `local` | `false` | 무관 (연결하지 않음) |
+| `local` | `true` | **`no_media`** — 데몬이 오디오/카메라를 놓아줍니다 |
+| `reachy` | `true` | `default` |
+
+`no_media`를 줘도 모터 제어는 정상 동작하고, 종료 시 하드웨어가 자동으로
+데몬에 반환됩니다.
+
 ## 음성 명령
 
 ```
