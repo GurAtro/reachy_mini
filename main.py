@@ -60,7 +60,7 @@ def main() -> int:
     from core.conversation import ConversationManager
     from core.llm import create_llm
     from core.stt import SpeechToText
-    from core.tts import TextToSpeech
+    from core.tts import create_tts
     from reachy.robot import Robot
 
     robot = Robot(config)
@@ -73,7 +73,7 @@ def main() -> int:
         return 1
 
     stt = SpeechToText(config)
-    tts = TextToSpeech(config)
+    tts = create_tts(config)
     llm = create_llm(config)
     conversation = ConversationManager()
 

@@ -35,17 +35,42 @@ Whisper에 줄 수 있어서, 8 GB 카드에서 STT 품질을 크게 올릴 수 
 모델은 `llm.claude.model`에서 바꿉니다. 응답 속도와 비용이 더 중요하면
 `claude-haiku-4-5`로 바꾸세요 — 지연시간이 눈에 띄게 줄어듭니다.
 
+### TTS 백엔드
+
+| `tts.backend` | VRAM | 목소리 복제 | 오프라인 |
+|---|---|---|---|
+| `edge` (기본) | **0 GB** | ❌ 프리셋만 | ❌ |
+| `qwen` | 0.9 ~ 3.4 GB | ✅ 3초 참조 | ✅ |
+
+`qwen`은 원하는 한국어 목소리를 직접 지정할 수 있고 인터넷 없이 동작합니다.
+Base 모델로 음성 복제를 하려면 참조 오디오와 **정확한 전사문**이 둘 다 필요합니다.
+
+```yaml
+tts:
+  backend: "qwen"
+  qwen:
+    model: "Qwen/Qwen3-TTS-12Hz-0.6B-Base"   # 1.7B-Base는 품질 우선
+    ref_audio: "voice/reachy.wav"             # 3초 이상 한국어 음성
+    ref_text: "안녕하세요, 리치입니다."          # 위 파일에서 실제로 말하는 내용
+```
+
+별도 설치가 필요합니다: `pip install -U qwen-tts` (torch를 함께 받습니다)
+
+> Ampere 이전 GPU(GTX 10/16 시리즈 등)는 bfloat16을 지원하지 않습니다.
+> `dtype: "float16"`으로 바꾸세요.
+
 ### VRAM 예산 (8 GB 기준)
 
-| 구성 | Whisper | LLM | 합계 |
-|---|---|---|---|
-| Claude + `small` | 0.7 GB | 0 | **0.7 GB** |
-| Claude + `medium` | 1.6 GB | 0 | **1.6 GB** |
-| Claude + `large-v3` | 3.1 GB | 0 | **3.1 GB** |
-| Ollama + `small` | 0.7 GB | 4.7 GB | **5.4 GB** |
+| 구성 | Whisper | LLM | TTS | 합계 |
+|---|---|---|---|---|
+| Claude + `small` + edge | 0.7 | 0 | 0 | **0.7 GB** |
+| Claude + `medium` + qwen 0.6B | 1.6 | 0 | 0.9 | **2.5 GB** |
+| Claude + `medium` + qwen 1.7B | 1.6 | 0 | 3.4 | **5.0 GB** |
+| Claude + `large-v3` + qwen 1.7B | 3.1 | 0 | 3.4 | **6.5 GB** |
+| Ollama + `small` + edge | 0.7 | 4.7 | 0 | **5.4 GB** |
 
-Claude 백엔드라면 `stt.model: medium`까지 여유롭게 올릴 수 있습니다.
-Ollama에서 메모리가 모자라면 `stt.device: cpu`로 내리세요.
+Windows 데스크톱이 1 GB 가까이 쓰므로 8 GB 카드의 실사용 한도는 약 7 GB입니다.
+Ollama와 로컬 TTS를 동시에 쓰긴 어렵습니다 — 둘 중 하나는 API/CPU로 내리세요.
 
 ### 오디오 입출력
 
@@ -112,8 +137,10 @@ config.yaml             모든 설정
 core/
   audio.py              오디오 소스 추상화 (LocalAudio / ReachyAudio) + VAD 녹음
   stt.py                faster-whisper 전사 (CUDA 자동 감지)
-  tts.py                edge-tts → PCM, pyttsx3 폴백
-  llm.py                백엔드 선택
+  tts.py                TTS 백엔드 선택 + 재생
+  tts_edge.py           edge-tts → PCM, pyttsx3 폴백
+  tts_qwen.py           Qwen3-TTS 로컬 + 3초 음성 복제
+  llm.py                LLM 백엔드 선택
   llm_claude.py         Claude API + 도구 루프 + 프롬프트 캐싱
   llm_ollama.py         Ollama + 도구 루프
   conversation.py       대화 기록

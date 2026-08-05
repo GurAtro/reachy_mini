@@ -1,57 +1,35 @@
 """
-Text-to-Speech.
+Text-to-Speech backend selection.
 
-  Primary:  edge-tts  — free, natural Korean voices, no VRAM, needs internet
-            (ko-KR-SunHiNeural / ko-KR-InJoonNeural)
-  Fallback: pyttsx3   — fully offline Windows SAPI, used when edge-tts fails
+Every backend exposes the same surface:
 
-Synthesis returns float32 mono PCM so the caller decides where it plays —
-the PC speaker or the robot's speaker.
+    backend.synthesize(text) -> (float32 mono samples, samplerate) | None
+    backend.speak(text, audio_source=None)
+
+Synthesis returns PCM rather than playing directly, so the caller decides where
+it goes - the PC speaker or the robot's speaker.
+
+Pick with `tts.backend` in config.yaml:
+    edge — edge-tts, no VRAM, natural Korean voices, needs internet
+    qwen — Qwen3-TTS, local, voice cloning from a 3-second clip, offline
 """
 from __future__ import annotations
 
-import asyncio
-import os
-import tempfile
+from abc import ABC, abstractmethod
 
 import numpy as np
-import soundfile as sf
 
 
-class TextToSpeech:
-    def __init__(self, config: dict):
-        cfg = config["tts"]
-        self.voice = cfg.get("voice", "ko-KR-SunHiNeural")
-        self.speed = cfg.get("speed", "+0%")
-        self._has_edge = self._probe_edge_tts()
-        backend = "edge-tts" if self._has_edge else "pyttsx3 (offline)"
-        print(f"[TTS] Ready - {backend}, voice: {self.voice}")
+class TTSBackend(ABC):
+    """Shared playback logic; backends only implement synthesize()."""
 
-    @staticmethod
-    def _probe_edge_tts() -> bool:
-        try:
-            import edge_tts  # noqa: F401
-            return True
-        except ImportError:
-            return False
-
-    # ── public API ───────────────────────────────────────────────────
-
+    @abstractmethod
     def synthesize(self, text: str) -> tuple[np.ndarray, int] | None:
         """Render `text` to (float32 mono samples, samplerate). None on failure."""
+
+    def speak(self, text: str, audio_source=None) -> None:
         if not text or not text.strip():
-            return None
-
-        if self._has_edge:
-            try:
-                return asyncio.run(self._synth_edge(text))
-            except Exception as e:
-                print(f"[TTS] edge-tts failed: {e} - falling back to pyttsx3")
-
-        return self._synth_pyttsx3(text)
-
-    def speak(self, text: str, audio_source=None):
-        """Synthesize and play. Routes through `audio_source` when given."""
+            return
         result = self.synthesize(text)
         if result is None:
             print(f"[TTS] (silent) {text}")
@@ -64,63 +42,32 @@ class TextToSpeech:
             sd.play(samples, rate)
             sd.wait()
 
-    # ── backends ─────────────────────────────────────────────────────
 
-    async def _synth_edge(self, text: str) -> tuple[np.ndarray, int]:
-        import edge_tts
-        communicate = edge_tts.Communicate(text, self.voice, rate=self.speed)
-        path = _tempfile(".mp3")
-        try:
-            await communicate.save(path)
-            return _read_mono(path)
-        finally:
-            _unlink(path)
+def create_tts(config: dict) -> TTSBackend:
+    cfg = config.get("tts", {})
+    backend = cfg.get("backend", "edge").lower()
 
-    def _synth_pyttsx3(self, text: str) -> tuple[np.ndarray, int] | None:
-        try:
-            import pyttsx3
-        except ImportError:
-            print("[TTS] pyttsx3 not installed; no speech output.")
-            return None
+    if backend == "edge":
+        from core.tts_edge import EdgeTTS
+        return EdgeTTS(config)
 
-        path = _tempfile(".wav")
-        try:
-            engine = pyttsx3.init()
-            engine.setProperty("rate", 175)
-            # Prefer a Korean SAPI voice when one is installed.
-            for v in engine.getProperty("voices"):
-                name = (v.name or "").lower()
-                if "korean" in name or "heami" in name or "ko-kr" in name:
-                    engine.setProperty("voice", v.id)
-                    break
-            engine.save_to_file(text, path)
-            engine.runAndWait()
-            if not os.path.exists(path) or os.path.getsize(path) == 0:
-                return None
-            return _read_mono(path)
-        except Exception as e:
-            print(f"[TTS] pyttsx3 error: {e}")
-            return None
-        finally:
-            _unlink(path)
+    if backend == "qwen":
+        from core.tts_qwen import QwenTTS
+        return QwenTTS(config)
+
+    raise ValueError(
+        f"Unknown tts.backend: {backend!r} (expected 'edge' or 'qwen')"
+    )
 
 
-# ── helpers ──────────────────────────────────────────────────────────
+# ── shared helpers ───────────────────────────────────────────────────
 
-def _tempfile(suffix: str) -> str:
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
-        return f.name
-
-
-def _unlink(path: str) -> None:
-    try:
-        os.unlink(path)
-    except OSError:
-        pass
-
-
-def _read_mono(path: str) -> tuple[np.ndarray, int]:
-    data, rate = sf.read(path, dtype="float32")
-    if data.ndim > 1:
-        data = data.mean(axis=1)
-    return data.astype(np.float32), int(rate)
+def to_mono_float32(data) -> np.ndarray:
+    """Normalise torch tensors / stereo arrays to a 1-D float32 array."""
+    if hasattr(data, "detach"):          # torch.Tensor
+        data = data.detach().cpu().numpy()
+    arr = np.asarray(data, dtype=np.float32)
+    if arr.ndim > 1:
+        # (channels, n) or (n, channels) - collapse the smaller axis
+        arr = arr.mean(axis=0) if arr.shape[0] < arr.shape[1] else arr.mean(axis=1)
+    return arr

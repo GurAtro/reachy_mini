@@ -52,9 +52,30 @@ stt:
   beam_size: 5
 
 tts:
-  # edge-tts Korean voices: ko-KR-SunHiNeural (female), ko-KR-InJoonNeural (male)
-  voice: "ko-KR-SunHiNeural"
-  speed: "+0%"
+  # edge = edge-tts   (0 VRAM, natural Korean, needs internet)
+  # qwen = Qwen3-TTS  (local/offline, 3-second voice cloning, ~0.9-3.4 GB VRAM)
+  backend: "edge"
+
+  edge:
+    # ko-KR-SunHiNeural (female), ko-KR-InJoonNeural (male)
+    voice: "ko-KR-SunHiNeural"
+    speed: "+0%"
+
+  qwen:
+    # 0.6B-Base ~0.9 GB | 1.7B-Base ~3.4 GB - both support Korean
+    model: "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
+    device: "cuda:0"
+    language: "Korean"
+    dtype: "bfloat16"          # use float16 on GPUs older than Ampere
+    attn_implementation: ""    # "flash_attention_2" if that package is installed
+
+    # Voice cloning - Base models. Needs 3+ seconds of Korean speech and its
+    # exact transcript. This is how you give the robot a specific voice.
+    ref_audio: ""              # file path or URL to a wav
+    ref_text: ""               # what is said in ref_audio, word for word
+
+    # Preset voice - CustomVoice models only. Used when ref_audio is empty.
+    speaker: ""
 
 audio:
   # "local"  = this PC's microphone and speaker (development)

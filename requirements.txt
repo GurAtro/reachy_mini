@@ -9,8 +9,14 @@ numpy
 scipy                 # resampling between TTS and device sample rates
 
 # ── TTS ──────────────────────────────────────────────────────────────
-edge-tts              # primary: free, natural Korean voices (needs internet)
-pyttsx3               # fallback: offline Windows SAPI
+edge-tts              # tts.backend: edge - free, natural Korean, needs internet
+pyttsx3               # offline fallback for the edge backend (Windows SAPI)
+
+# tts.backend: qwen - local Qwen3-TTS with voice cloning. Left commented out
+# because it pulls in torch (~2.5 GB); install only if you use this backend:
+#   pip install -U qwen-tts
+#   pip install -U flash-attn --no-build-isolation   # optional, faster
+# qwen-tts
 
 # ── LLM backends ─────────────────────────────────────────────────────
 anthropic>=0.100.0    # llm.backend: claude
