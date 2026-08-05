@@ -1,30 +1,77 @@
+# ─────────────────────────────────────────────────────────────────────
+# Reachy Mini AI Assistant — configuration
+# ─────────────────────────────────────────────────────────────────────
+
 llm:
-  model: "exaone3.5:7.8b"
-  base_url: "http://localhost:11434"
-  temperature: 0.7
+  # "claude" = Claude API (0 VRAM, best Korean quality, needs internet)
+  # "ollama" = local model (uses VRAM, works offline)
+  backend: "claude"
+
+  # Safety cap on the tool-calling loop (prevents runaway tool chains)
+  max_tool_iterations: 5
+
+  claude:
+    model: "claude-opus-5"
+    max_tokens: 8192
+    # low | medium | high | xhigh | max
+    # "low" keeps voice latency down; raise if answers feel shallow.
+    effort: "low"
+    # API key is read from the ANTHROPIC_API_KEY environment variable.
+
+  ollama:
+    model: "exaone3.5:7.8b"
+    base_url: "http://localhost:11434"
+    temperature: 0.7
+
   system_prompt: |
-    You are Reachy, a friendly and helpful desktop AI assistant embodied in a Reachy Mini robot.
-    You assist the user with their PC tasks and engage in natural English conversation.
-    When the user asks you to control the PC (open YouTube, check disk space, shutdown, etc.),
-    use the available tools to fulfill the request.
-    Keep responses concise and conversational. You can also help the user practice English
-    by gently correcting mistakes when asked. Be warm, natural, and helpful.
+    당신은 'Reachy'입니다. 사용자의 책상 위에 있는 Reachy Mini 로봇에 깃든 AI 비서입니다.
+
+    말투와 분량:
+    - 당신의 답변은 음성으로 읽힙니다. 짧고 자연스러운 구어체로 답하세요.
+    - 기본 1~3문장. 목록, 표, 마크다운 기호는 쓰지 마세요. 소리 내어 읽었을 때 자연스러워야 합니다.
+    - 숫자와 단위는 읽는 대로 풀어 쓰세요. 예를 들어 "45.2GB"는 "45.2기가바이트"로.
+
+    도구 사용:
+    - PC 제어 요청(유튜브 열기, 디스크 확인, 볼륨 조절, 앱 실행, 종료 등)은 제공된 도구로 처리하세요.
+    - 도구 결과를 그대로 나열하지 말고, 사람이 듣기 좋게 한 문장으로 요약해 전달하세요.
+    - PC 종료와 재시작처럼 되돌리기 어려운 작업은 실행 전에 한 번 확인을 받으세요.
+
+    기타:
+    - 모르면 모른다고 하세요. 지어내지 마세요.
+    - 사용자가 한국어로 말하면 한국어로, 영어로 말하면 영어로 답하세요.
 
 stt:
-  model: "base"          # tiny | base | small | medium | large-v3
-  language: "en"
-  device: "cpu"          # cpu | cuda
+  # tiny | base | small | medium | large-v3
+  # Korean needs at least "small"; "medium" is noticeably better if VRAM allows.
+  model: "small"
+  language: "ko"
+  # auto | cpu | cuda   ("auto" tries CUDA, falls back to CPU)
+  device: "auto"
+  # auto | int8 | int8_float16 | float16
+  compute_type: "auto"
+  beam_size: 5
 
 tts:
-  voice: "en-US-JennyNeural"   # edge-tts voice (natural female)
-  speed: "+0%"                  # rate adjustment: "+10%" faster, "-10%" slower
+  # edge-tts Korean voices: ko-KR-SunHiNeural (female), ko-KR-InJoonNeural (male)
+  voice: "ko-KR-SunHiNeural"
+  speed: "+0%"
 
 audio:
+  # "local"  = this PC's microphone and speaker (development)
+  # "reachy" = the robot's 4-mic array and speaker (requires reachy.enabled: true)
+  source: "local"
   sample_rate: 16000
-  channels: 1
-  silence_threshold: 500
-  silence_duration: 1.5  # seconds of silence to stop recording
+  silence_threshold: 500      # int16 mean amplitude below this counts as silence
+  silence_duration: 1.2       # seconds of silence that ends an utterance
+  max_record_seconds: 30      # hard cap on one utterance
+  idle_timeout: 30            # give up waiting after this much silence (0 = wait forever)
 
 reachy:
-  mock_mode: true        # true = run without hardware, false = real robot
-  ip: "192.168.1.100"   # Reachy Mini IP address (when mock_mode: false)
+  # false = mock mode, no hardware needed (everything logs to console)
+  enabled: false
+  # auto | localhost_only | network
+  connection_mode: "auto"
+  # default | local | webrtc | no_media
+  media_backend: "default"
+  motion_duration: 0.6        # seconds per motion, used by goto_target
+  head_tracking: false        # follow the nearest face while listening

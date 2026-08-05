@@ -1,95 +1,68 @@
 """
-Speech-to-Text using faster-whisper (local, English optimized)
+Speech-to-Text with faster-whisper.
+
+Pure transcription — recording lives in core/audio.py so the same model works
+with either the PC microphone or the robot's mic array.
+
+VRAM (approximate, int8_float16 on CUDA):
+    small ~0.7 GB   medium ~1.6 GB   large-v3 ~3.1 GB
+With the Claude backend the LLM uses no VRAM, so "small" or "medium" fit
+comfortably inside an 8 GB card alongside anything else you run.
 """
-import io
+from __future__ import annotations
+
 import numpy as np
-import pyaudio
-import time
-import yaml
 from faster_whisper import WhisperModel
 
+from core.audio import _resample
 
-def load_config():
-    with open("config.yaml", "r") as f:
-        return yaml.safe_load(f)
+WHISPER_RATE = 16000
 
 
 class SpeechToText:
     def __init__(self, config: dict):
-        self.config = config
-        stt_cfg = config["stt"]
-        audio_cfg = config["audio"]
+        cfg = config["stt"]
+        self.language = cfg.get("language", "ko")
+        self.beam_size = int(cfg.get("beam_size", 5))
+        name = cfg.get("model", "small")
 
-        print(f"[STT] Loading Whisper model '{stt_cfg['model']}'...")
-        self.model = WhisperModel(
-            stt_cfg["model"],
-            device=stt_cfg["device"],
-            compute_type="int8"
-        )
-        self.language = stt_cfg["language"]
-        self.sample_rate = audio_cfg["sample_rate"]
-        self.silence_threshold = audio_cfg["silence_threshold"]
-        self.silence_duration = audio_cfg["silence_duration"]
-        print("[STT] Ready.")
+        device = cfg.get("device", "auto")
+        compute_type = cfg.get("compute_type", "auto")
 
-    def _is_silent(self, data: bytes) -> bool:
-        audio_data = np.frombuffer(data, dtype=np.int16)
-        return np.abs(audio_data).mean() < self.silence_threshold
+        print(f"[STT] Loading Whisper '{name}' (device={device})...")
+        self.model, self.device = self._load(name, device, compute_type)
+        print(f"[STT] Ready on {self.device}, language={self.language}.")
 
-    def listen(self) -> str | None:
-        """Record audio until silence, then transcribe."""
-        pa = pyaudio.PyAudio()
-        stream = pa.open(
-            format=pyaudio.paInt16,
-            channels=1,
-            rate=self.sample_rate,
-            input=True,
-            frames_per_buffer=1024
-        )
+    @staticmethod
+    def _load(name: str, device: str, compute_type: str):
+        """Load the model, preferring CUDA when device is 'auto'."""
+        def build(dev: str):
+            ct = compute_type
+            if ct == "auto":
+                ct = "int8_float16" if dev == "cuda" else "int8"
+            return WhisperModel(name, device=dev, compute_type=ct), dev
 
-        print("[STT] Listening... (speak now)")
-        frames = []
-        silent_chunks = 0
-        speaking = False
-        silence_limit = int(self.silence_duration * self.sample_rate / 1024)
+        if device == "auto":
+            try:
+                return build("cuda")
+            except Exception as e:
+                print(f"[STT] CUDA unavailable ({e}). Using CPU.")
+                return build("cpu")
+        return build(device)
 
-        try:
-            while True:
-                data = stream.read(1024, exception_on_overflow=False)
-                frames.append(data)
-
-                if self._is_silent(data):
-                    if speaking:
-                        silent_chunks += 1
-                        if silent_chunks >= silence_limit:
-                            break
-                else:
-                    speaking = True
-                    silent_chunks = 0
-
-                # Max 30 seconds
-                if len(frames) > (30 * self.sample_rate // 1024):
-                    break
-        finally:
-            stream.stop_stream()
-            stream.close()
-            pa.terminate()
-
-        if not speaking:
+    def transcribe(self, audio: np.ndarray, samplerate: int = WHISPER_RATE) -> str | None:
+        """Transcribe float32 mono audio. Returns None when nothing was said."""
+        if audio is None or audio.size == 0:
             return None
 
-        # Convert to numpy array for whisper
-        audio_bytes = b"".join(frames)
-        audio_np = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        if samplerate != WHISPER_RATE:
+            audio = _resample(audio, samplerate, WHISPER_RATE)
 
-        print("[STT] Transcribing...")
-        segments, _ = self.model.transcribe(
-            audio_np,
+        segments, _info = self.model.transcribe(
+            audio.astype(np.float32),
             language=self.language,
-            beam_size=5,
-            vad_filter=True
+            beam_size=self.beam_size,
+            vad_filter=True,
         )
         text = " ".join(seg.text.strip() for seg in segments).strip()
-        if text:
-            print(f"[STT] You said: {text}")
         return text or None

@@ -1,53 +1,31 @@
 """
-LLM interface via Ollama — supports tool/function calling
+LLM backend selection.
+
+Both backends expose the same surface:
+
+    backend.chat(history) -> str
+
+where `history` is a plain [{"role": "user"|"assistant", "content": str}] list.
+Tool calling is resolved inside `chat`, so the caller only ever sees text.
+
+Pick with `llm.backend` in config.yaml:
+    claude — Claude API, no VRAM, best Korean quality, needs internet
+    ollama — local model, works offline, costs VRAM
 """
-import json
-import yaml
-import ollama
-from tools.registry import TOOLS, execute_tool
+from __future__ import annotations
 
 
-class LLM:
-    def __init__(self, config: dict):
-        self.config = config
-        llm_cfg = config["llm"]
-        self.model = llm_cfg["model"]
-        self.temperature = llm_cfg["temperature"]
-        self.system_prompt = llm_cfg["system_prompt"]
-        self.client = ollama.Client(host=llm_cfg["base_url"])
-        print(f"[LLM] Using model: {self.model}")
+def create_llm(config: dict):
+    backend = config["llm"].get("backend", "claude").lower()
 
-    def chat(self, messages: list[dict]) -> str:
-        """Send messages to LLM, handle tool calls, return final response."""
-        full_messages = [
-            {"role": "system", "content": self.system_prompt}
-        ] + messages
+    if backend == "claude":
+        from core.llm_claude import ClaudeLLM
+        return ClaudeLLM(config)
 
-        while True:
-            response = self.client.chat(
-                model=self.model,
-                messages=full_messages,
-                tools=TOOLS,
-                options={"temperature": self.temperature}
-            )
+    if backend == "ollama":
+        from core.llm_ollama import OllamaLLM
+        return OllamaLLM(config)
 
-            msg = response.message
-
-            # No tool calls → return text response
-            if not msg.tool_calls:
-                return msg.content
-
-            # Handle tool calls
-            full_messages.append(msg)
-            for tool_call in msg.tool_calls:
-                fn_name = tool_call.function.name
-                fn_args = tool_call.function.arguments
-                print(f"[LLM] Tool call: {fn_name}({fn_args})")
-
-                result = execute_tool(fn_name, fn_args)
-                print(f"[LLM] Tool result: {result}")
-
-                full_messages.append({
-                    "role": "tool",
-                    "content": str(result)
-                })
+    raise ValueError(
+        f"Unknown llm.backend: {backend!r} (expected 'claude' or 'ollama')"
+    )

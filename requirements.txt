@@ -1,23 +1,30 @@
-# STT
-faster-whisper
+# ── STT ──────────────────────────────────────────────────────────────
+faster-whisper        # Korean STT; runs on CUDA or CPU
 
-# Audio I/O
-pyaudio
-sounddevice
+# ── Audio I/O ────────────────────────────────────────────────────────
+pyaudio               # PC microphone (audio.source: local)
+sounddevice           # PC speaker playback
+soundfile             # decode edge-tts / pyttsx3 output
 numpy
+scipy                 # resampling between TTS and device sample rates
 
-# TTS
-edge-tts      # primary: free, natural English voices (requires internet)
-pyttsx3       # fallback: fully offline Windows SAPI voices
-soundfile     # for audio playback of edge-tts output
+# ── TTS ──────────────────────────────────────────────────────────────
+edge-tts              # primary: free, natural Korean voices (needs internet)
+pyttsx3               # fallback: offline Windows SAPI
 
-# LLM (Ollama client)
-ollama
+# ── LLM backends ─────────────────────────────────────────────────────
+anthropic>=0.100.0    # llm.backend: claude
+ollama                # llm.backend: ollama
 
-# PC Control
+# ── Robot ────────────────────────────────────────────────────────────
+# Reachy Mini SDK. NOT `reachy-sdk`, which targets the full-size Reachy 2.
+# Only needed when reachy.enabled is true.
+reachy-mini
+
+# ── PC control tools ─────────────────────────────────────────────────
 psutil
 pyautogui
 
-# Utilities
+# ── Utilities ────────────────────────────────────────────────────────
 pyyaml
 requests

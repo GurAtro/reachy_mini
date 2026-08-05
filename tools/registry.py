@@ -184,3 +184,23 @@ def execute_tool(name: str, args: dict) -> str:
         return fn(**args)
     except Exception as e:
         return f"Tool '{name}' error: {e}"
+
+
+# ── Anthropic tool format ────────────────────────────────────────────
+# Ollama/OpenAI wrap each tool in {"type": "function", "function": {...}}
+# and call the schema "parameters"; the Anthropic API takes the fields at the
+# top level and calls the schema "input_schema". Same tools, different shape.
+
+def to_anthropic_tools(tools: list[dict]) -> list[dict]:
+    converted = []
+    for tool in tools:
+        fn = tool.get("function", tool)
+        converted.append({
+            "name": fn["name"],
+            "description": fn.get("description", ""),
+            "input_schema": fn.get("parameters", {"type": "object", "properties": {}}),
+        })
+    return converted
+
+
+ANTHROPIC_TOOLS = to_anthropic_tools(TOOLS)
