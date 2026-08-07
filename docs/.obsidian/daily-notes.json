@@ -1,0 +1,6 @@
+{
+  "folder": "40-Log",
+  "format": "YYYY-MM-DD",
+  "template": "_templates/작업 로그",
+  "autorun": false
+}

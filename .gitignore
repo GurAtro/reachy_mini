@@ -5,3 +5,10 @@ __pycache__/
 *.onnx
 *.bin
 .claude/
+
+# Obsidian — 볼트 설정은 공유하되, 개인 작업공간/캐시는 제외
+docs/.obsidian/workspace.json
+docs/.obsidian/workspace-mobile.json
+docs/.obsidian/cache
+docs/.obsidian/plugins/*/data.json
+docs/_attachments/
