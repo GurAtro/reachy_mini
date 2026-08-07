@@ -37,7 +37,8 @@ def parse_day(argv: list[str]) -> date:
 def commits_on(day: date) -> list[str]:
     """그날 00:00 ~ 다음날 00:00 사이의 커밋을 마크다운 줄로."""
     result = subprocess.run(
-        ["git", "log",
+        # core.quotepath=false — 없으면 한글 파일명이 8진수로 이스케이프됩니다.
+        ["git", "-c", "core.quotepath=false", "log",
          f"--since={day.isoformat()} 00:00",
          f"--until={(day + timedelta(days=1)).isoformat()} 00:00",
          "--pretty=format:%h\t%s\t%an",
@@ -60,12 +61,15 @@ def commits_on(day: date) -> list[str]:
 
 def changed_files(rev: str, limit: int = 4) -> list[str]:
     result = subprocess.run(
-        ["git", "show", "--name-only", "--pretty=format:", rev],
+        ["git", "-c", "core.quotepath=false",
+         "show", "--name-only", "--pretty=format:", rev],
         cwd=REPO, capture_output=True, text=True, encoding="utf-8",
     )
     files = [f for f in result.stdout.splitlines() if f.strip()]
     # 볼트 자신의 변경은 빼야 로그가 자기 얘기로 채워지지 않습니다.
     files = [f for f in files if not f.startswith("docs/")]
+    if not files:
+        return []
     if len(files) > limit:
         return files[:limit] + [f"…외 {len(files) - limit}개"]
     return files
